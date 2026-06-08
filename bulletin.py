@@ -160,9 +160,8 @@ LIVE SEARCH RESULTS:
     )
 
     raw = "".join(b.text for b in response.content if hasattr(b, "text"))
-raw = raw.replace("```json", "").replace("```", "").strip()
+    raw = raw.replace("```json", "").replace("```", "").strip()
 
-    # Extract JSON object
     start = raw.find("{")
     end = raw.rfind("}") + 1
     if start < 0 or end <= start:
@@ -176,23 +175,19 @@ raw = raw.replace("```json", "").replace("```", "").strip()
     except json.JSONDecodeError:
         pass
 
-    # Try to fix common truncation issues — truncate to last complete finding
+    # Try truncation repair — find last complete finding and close cleanly
     try:
-        # Find the last complete closing brace sequence for findings array
         last_good = json_str.rfind('},\n    {')
         if last_good > 0:
-            # Close off the findings array and object cleanly
             truncated = json_str[:last_good] + '}]}'
-            # Patch up any open nested structures
             truncated = truncated.replace(',]}', ']}')
             return json.loads(truncated)
     except (json.JSONDecodeError, Exception):
         pass
 
-    # Final fallback — ask Claude to fix its own JSON
+    # Final fallback — ask Claude to repair its own JSON
     print(f"  JSON parse failed, asking Claude to repair...")
-    client_ref = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
-    repair_response = client_ref.messages.create(
+    repair_response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4000,
         messages=[{
