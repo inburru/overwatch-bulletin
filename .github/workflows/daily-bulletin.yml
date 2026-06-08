@@ -2,10 +2,8 @@ name: Overwatch Daily OSINT Bulletin
 
 on:
   schedule:
-    # 04:00 UTC = 06:00 SAST every morning
     - cron: '0 4 * * *'
   workflow_dispatch:
-    # Allows manual trigger from GitHub Actions tab
     inputs:
       reason:
         description: 'Reason for manual run'
@@ -21,26 +19,30 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Install dependencies
-        run: |
-          pip install anthropic
+        run: pip install anthropic
 
       - name: Run Overwatch bulletin
         env:
           ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
           GMAIL_ADDRESS:      ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         run: python bulletin.py
 
       - name: Upload bulletin artifacts
         uses: actions/upload-artifact@v4
         if: always()
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         with:
           name: bulletin-${{ github.run_id }}
           path: |
