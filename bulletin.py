@@ -160,14 +160,54 @@ LIVE SEARCH RESULTS:
     )
 
     raw = "".join(b.text for b in response.content if hasattr(b, "text"))
-    raw = raw.replace("```json", "").replace("```", "").strip()
+raw = raw.replace("```json", "").replace("```", "").strip()
 
     # Extract JSON object
     start = raw.find("{")
     end = raw.rfind("}") + 1
-    if start >= 0 and end > start:
-        return json.loads(raw[start:end])
-    raise ValueError(f"Could not parse bulletin JSON. Raw response:\n{raw[:500]}")
+    if start < 0 or end <= start:
+        raise ValueError(f"No JSON object found in response:\n{raw[:500]}")
+
+    json_str = raw[start:end]
+
+    # First try clean parse
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+
+    # Try to fix common truncation issues — truncate to last complete finding
+    try:
+        # Find the last complete closing brace sequence for findings array
+        last_good = json_str.rfind('},\n    {')
+        if last_good > 0:
+            # Close off the findings array and object cleanly
+            truncated = json_str[:last_good] + '}]}'
+            # Patch up any open nested structures
+            truncated = truncated.replace(',]}', ']}')
+            return json.loads(truncated)
+    except (json.JSONDecodeError, Exception):
+        pass
+
+    # Final fallback — ask Claude to fix its own JSON
+    print(f"  JSON parse failed, asking Claude to repair...")
+    client_ref = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+    repair_response = client_ref.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4000,
+        messages=[{
+            "role": "user",
+            "content": (
+                f"The following JSON is malformed. Fix it and return only valid JSON, "
+                f"no markdown, no explanation:\n\n{json_str}"
+            )
+        }]
+    )
+    repaired = "".join(b.text for b in repair_response.content if hasattr(b, "text"))
+    repaired = repaired.replace("```json", "").replace("```", "").strip()
+    start2 = repaired.find("{")
+    end2 = repaired.rfind("}") + 1
+    return json.loads(repaired[start2:end2])
 
 
 # ── HTML EMAIL ────────────────────────────────────────────────────────────────
